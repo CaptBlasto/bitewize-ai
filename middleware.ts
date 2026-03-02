@@ -31,10 +31,24 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect /dashboard — redirect unauthenticated users to /login
-  if (!user && request.nextUrl.pathname.startsWith("/dashboard")) {
-    const loginUrl = new URL("/login", request.url);
-    return NextResponse.redirect(loginUrl);
+  const path = request.nextUrl.pathname;
+
+  // Protect /onboarding and /dashboard — redirect unauthenticated users to /login
+  if (!user && (path.startsWith("/dashboard") || path.startsWith("/onboarding"))) {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // Authenticated users accessing /dashboard — enforce onboarding completion
+  if (user && path.startsWith("/dashboard")) {
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("onboarding_complete")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile?.onboarding_complete) {
+      return NextResponse.redirect(new URL("/onboarding/plan", request.url));
+    }
   }
 
   return response;
