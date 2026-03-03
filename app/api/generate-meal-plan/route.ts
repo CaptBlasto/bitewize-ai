@@ -237,6 +237,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to save meal plan." }, { status: 500 });
     }
 
+    // Award +50 XP for generating a meal plan (non-blocking)
+    try {
+      const { data: currentProfile } = await supabase
+        .from("user_profiles")
+        .select("xp")
+        .eq("id", user.id)
+        .single();
+
+      if (currentProfile) {
+        const newXp = (currentProfile.xp ?? 0) + 50;
+        await supabase
+          .from("user_profiles")
+          .update({ xp: newXp, level: Math.floor(newXp / 200) + 1 })
+          .eq("id", user.id);
+      }
+    } catch (xpErr) {
+      console.warn("XP award failed (non-blocking):", xpErr);
+    }
+
     return NextResponse.json(savedPlan);
   } catch (err) {
     console.error("Unexpected error in generate-meal-plan:", err);

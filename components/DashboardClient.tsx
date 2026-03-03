@@ -7,6 +7,7 @@ import MealPlanCard from "@/components/MealPlanCard";
 import MealCalendarCard from "@/components/MealCalendarCard";
 import WeeklyOverviewCard from "@/components/WeeklyOverviewCard";
 import NutritionStatsCard from "@/components/NutritionStatsCard";
+import XPStatsCard from "@/components/XPStatsCard";
 
 interface UserProfile {
   full_name: string | null;
@@ -28,6 +29,7 @@ export default function DashboardClient({ userId, email, profile }: Props) {
   const today = new Date(_now.getTime() - _now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
   const [selectedDate, setSelectedDate] = useState(today);
   const [weeklyRefreshKey, setWeeklyRefreshKey] = useState(0);
+  const [xpRefreshKey, setXpRefreshKey] = useState(0);
 
   const displayName = profile?.full_name ?? email.split("@")[0] ?? "there";
   const userPlan = profile?.plan ?? "free";
@@ -100,7 +102,10 @@ export default function DashboardClient({ userId, email, profile }: Props) {
               userPlan={userPlan}
               userId={userId}
               selectedDate={selectedDate}
-              onPlanGenerated={() => setWeeklyRefreshKey((k) => k + 1)}
+              onPlanGenerated={() => {
+                setWeeklyRefreshKey((k) => k + 1);
+                setXpRefreshKey((k) => k + 1);
+              }}
             />
             <MealCalendarCard
               selectedDate={selectedDate}
@@ -110,6 +115,7 @@ export default function DashboardClient({ userId, email, profile }: Props) {
 
           {/* Right column */}
           <div className="flex flex-col gap-6">
+            <XPStatsCard refreshKey={xpRefreshKey} />
             <WeeklyOverviewCard refreshKey={weeklyRefreshKey} />
             <NutritionStatsCard />
           </div>
