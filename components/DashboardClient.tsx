@@ -24,8 +24,10 @@ interface Props {
 
 export default function DashboardClient({ userId, email, profile }: Props) {
   const router = useRouter();
-  const today = new Date().toISOString().split("T")[0];
+  const _now = new Date();
+  const today = new Date(_now.getTime() - _now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
   const [selectedDate, setSelectedDate] = useState(today);
+  const [weeklyRefreshKey, setWeeklyRefreshKey] = useState(0);
 
   const displayName = profile?.full_name ?? email.split("@")[0] ?? "there";
   const userPlan = profile?.plan ?? "free";
@@ -98,6 +100,7 @@ export default function DashboardClient({ userId, email, profile }: Props) {
               userPlan={userPlan}
               userId={userId}
               selectedDate={selectedDate}
+              onPlanGenerated={() => setWeeklyRefreshKey((k) => k + 1)}
             />
             <MealCalendarCard
               selectedDate={selectedDate}
@@ -107,7 +110,7 @@ export default function DashboardClient({ userId, email, profile }: Props) {
 
           {/* Right column */}
           <div className="flex flex-col gap-6">
-            <WeeklyOverviewCard />
+            <WeeklyOverviewCard refreshKey={weeklyRefreshKey} />
             <NutritionStatsCard />
           </div>
 

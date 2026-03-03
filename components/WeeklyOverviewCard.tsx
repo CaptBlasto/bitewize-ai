@@ -7,6 +7,10 @@ interface HistoryEntry {
   macros: { total_calories: number };
 }
 
+function localDateStr(d: Date): string {
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split("T")[0];
+}
+
 function getWeekDates(): string[] {
   const today = new Date();
   const day = today.getDay(); // 0=Sun
@@ -17,14 +21,14 @@ function getWeekDates(): string[] {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
-    return d.toISOString().split("T")[0];
+    return localDateStr(d);
   });
 }
 
 function calcStreak(savedSet: Set<string>): number {
   const d = new Date();
   let streak = 0;
-  while (savedSet.has(d.toISOString().split("T")[0])) {
+  while (savedSet.has(localDateStr(d))) {
     streak++;
     d.setDate(d.getDate() - 1);
   }
@@ -33,14 +37,15 @@ function calcStreak(savedSet: Set<string>): number {
 
 const SHORT_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-export default function WeeklyOverviewCard() {
+export default function WeeklyOverviewCard({ refreshKey }: { refreshKey?: number }) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = localDateStr(new Date());
   const weekDates = getWeekDates();
 
-  useEffect(() => {
+  function fetchHistory() {
+    setLoading(true);
     fetch("/api/meal-history")
       .then((r) => r.json())
       .then((data) => {
@@ -48,7 +53,11 @@ export default function WeeklyOverviewCard() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => {
+    fetchHistory();
+  }, [refreshKey]);
 
   const savedSet = new Set(history.map((h) => h.plan_date));
   const planned = weekDates.filter((d) => savedSet.has(d)).length;
@@ -71,7 +80,7 @@ export default function WeeklyOverviewCard() {
               const hasPlan = savedSet.has(date);
               const isToday = date === today;
               return (
-                <div key={date} className="flex flex-col items-center gap-1">
+                <div key={`${date}-${i}`} className="flex flex-col items-center gap-1">
                   <span className="text-xs text-bw-muted">{SHORT_DAYS[i]}</span>
                   <div
                     className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold transition

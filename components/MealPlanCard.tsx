@@ -60,6 +60,7 @@ interface Props {
   userPlan: string;
   userId: string;
   selectedDate: string;
+  onPlanGenerated?: () => void;
 }
 
 // ─── Meal type badge config ───────────────────────────────────────────────────
@@ -77,7 +78,7 @@ function mealBadgeCls(type: string) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function MealPlanCard({ userPlan, selectedDate }: Props) {
+export default function MealPlanCard({ userPlan, selectedDate, onPlanGenerated }: Props) {
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -121,6 +122,7 @@ export default function MealPlanCard({ userPlan, selectedDate }: Props) {
       const data = await res.json();
       setMealPlan(data);
       setExpanded(0);
+      onPlanGenerated?.();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to generate. Please try again.");
     } finally {

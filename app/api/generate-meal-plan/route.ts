@@ -29,7 +29,7 @@ import { createClient } from "@/lib/supabase/server";
 const SYSTEM_PROMPT =
   "You are a professional nutritionist and personal chef. You create delicious, realistic, detailed meal plans tailored to each person's exact profile. Always return valid JSON only — no markdown, no explanation, just the raw JSON object.";
 
-function buildUserPrompt(profile: Record<string, unknown>): string {
+function buildUserPrompt(profile: Record<string, unknown>, date: string): string {
   const dietTypes = Array.isArray(profile.diet_types)
     ? (profile.diet_types as string[]).join(", ")
     : "Standard";
@@ -60,6 +60,17 @@ Cooking skill: ${profile.cooking_skill}
 Max cook time per meal: ${profile.cook_time}
 Available appliances: ${appliances}
 Location: ${profile.location_city ?? ""}, ${profile.location_state ?? ""}
+
+IMPORTANT VARIETY RULES:
+- Today's date is ${date} — use this to seed variety
+- NEVER repeat the same protein two meals in a row
+- Rotate proteins across the week: if beef was used yesterday, use fish, turkey, or eggs today
+- Vary cooking methods: if breakfast is pan-fried, lunch should be baked or grilled
+- Include at least one vegetable-forward meal per day
+- Breakfast should NOT always be eggs/beef — rotate between: oatmeal, smoothies, yogurt parfait, avocado toast, breakfast burritos, protein pancakes
+- Lunch and dinner should feel completely different from each other
+- Make meals feel exciting and restaurant-quality, not repetitive meal prep
+- The date ${date} should influence the meal selection — Monday feels different from Friday
 
 Generate exactly ${mealsPerDay} meals. Return ONLY this JSON structure with no extra text:
 
@@ -115,6 +126,7 @@ Generate exactly ${mealsPerDay} meals. Return ONLY this JSON structure with no e
 }
 
 export async function POST(request: Request) {
+  console.log("API KEY LOADED:", process.env.ANTHROPIC_API_KEY?.slice(0, 15));
   try {
     const supabase = await createClient();
     const {
@@ -127,8 +139,9 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => ({}));
+    const today = new Date();
     const date: string =
-      (body.date as string) ?? new Date().toISOString().split("T")[0];
+      body.date ?? new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().split("T")[0];
     const force: boolean = body.force === true;
 
     // Fetch user profile
@@ -157,23 +170,29 @@ export async function POST(request: Request) {
     }
 
     // Call Anthropic API
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    console.log("KEY AT REQUEST TIME:", apiKey?.slice(0, 20));
+
     const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.ANTHROPIC_API_KEY}`,
+        "x-api-key": apiKey ?? "",
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 4000,
         system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: buildUserPrompt(profile) }],
+        messages: [{ role: "user", content: buildUserPrompt(profile, date) }],
       }),
     });
 
+    console.log("Anthropic response status:", anthropicRes.status);
+
+    const errText = await anthropicRes.text();
+
     if (!anthropicRes.ok) {
-      const errText = await anthropicRes.text();
       console.error("Anthropic API error:", errText);
       return NextResponse.json(
         { error: "AI generation failed. Please try again." },
@@ -181,7 +200,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const aiData = await anthropicRes.json();
+    const aiData = JSON.parse(errText);
     const rawText: string = aiData.content?.[0]?.text ?? "";
 
     let planJson: { meals: unknown[]; macros: unknown };
