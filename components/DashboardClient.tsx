@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import MealPlanCard from "@/components/MealPlanCard";
 import MealCalendarCard from "@/components/MealCalendarCard";
@@ -51,12 +52,23 @@ export default function DashboardClient({ userId, email, profile }: Props) {
           <span className="text-xl font-bold bg-gradient-to-r from-bw-purple to-bw-blue bg-clip-text text-transparent">
             Bitewize
           </span>
-          <button
-            onClick={handleLogout}
-            className="rounded-xl border border-bw-border bg-bw-card px-5 py-2 text-sm font-medium text-bw-muted hover:text-bw-text hover:border-bw-purple transition"
-          >
-            Sign Out
-          </button>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/avatar"
+              className="flex items-center gap-1.5 rounded-xl border border-bw-border bg-bw-card px-4 py-2 text-sm font-medium text-bw-muted hover:text-bw-text hover:border-bw-purple transition"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+              </svg>
+              {displayName}&apos;s Avatar
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="rounded-xl border border-bw-border bg-bw-card px-5 py-2 text-sm font-medium text-bw-muted hover:text-bw-text hover:border-bw-purple transition"
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
       </header>
 

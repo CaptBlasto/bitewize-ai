@@ -33,8 +33,8 @@ export async function proxy(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
-  // Protect /onboarding and /dashboard — redirect unauthenticated users to /login
-  if (!user && (path.startsWith("/dashboard") || path.startsWith("/onboarding"))) {
+  // Protect /onboarding, /dashboard, /avatar — redirect unauthenticated users to /login
+  if (!user && (path.startsWith("/dashboard") || path.startsWith("/onboarding") || path.startsWith("/avatar"))) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
