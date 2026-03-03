@@ -33,9 +33,10 @@ function getTodayString(): string {
     .split("T")[0];
 }
 
-function buildStatsResponse(xp: number, streak: number, lastActiveDate: string | null) {
+function buildStatsResponse(xp: number, streak: number, lastActiveDate: string | null, fullName: string | null) {
   const level = calcLevel(xp);
   const xpInLevel = xp % XP_PER_LEVEL;
+  const firstName = fullName?.split(" ")[0] ?? null;
   return {
     xp,
     level,
@@ -45,6 +46,7 @@ function buildStatsResponse(xp: number, streak: number, lastActiveDate: string |
     xpToNextLevel: XP_PER_LEVEL,
     xpPct: Math.round((xpInLevel / XP_PER_LEVEL) * 100),
     last_active_date: lastActiveDate,
+    firstName,
   };
 }
 
@@ -63,7 +65,7 @@ export async function GET() {
 
   const { data: profile, error } = await supabase
     .from("user_profiles")
-    .select("xp, level, streak, last_active_date")
+    .select("xp, level, streak, last_active_date, full_name")
     .eq("id", user.id)
     .single();
 
@@ -74,7 +76,7 @@ export async function GET() {
   const xp: number = profile.xp ?? 0;
   const streak: number = profile.streak ?? 0;
 
-  return NextResponse.json(buildStatsResponse(xp, streak, profile.last_active_date));
+  return NextResponse.json(buildStatsResponse(xp, streak, profile.last_active_date, profile.full_name));
 }
 
 // ─── POST — award XP ────────────────────────────────────────────────────────
@@ -99,7 +101,7 @@ export async function POST(request: Request) {
 
   const { data: profile, error: profileError } = await supabase
     .from("user_profiles")
-    .select("xp, level, streak, last_active_date")
+    .select("xp, level, streak, last_active_date, full_name")
     .eq("id", user.id)
     .single();
 
@@ -171,7 +173,7 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    ...buildStatsResponse(newXp, newStreak, newLastActiveDate),
+    ...buildStatsResponse(newXp, newStreak, newLastActiveDate, profile.full_name),
     xpAwarded,
     alreadyAwarded,
   });

@@ -10,6 +10,7 @@ interface XPStats {
   xpInLevel: number;
   xpToNextLevel: number;
   xpPct: number;
+  firstName: string | null;
 }
 
 interface HistoryEntry {
@@ -100,7 +101,9 @@ export default function XPStatsCard({ refreshKey }: { refreshKey?: number }) {
 
   return (
     <div className="rounded-2xl border border-bw-border bg-bw-card p-6">
-      <h2 className="text-lg font-bold mb-4">Player Stats</h2>
+      <h2 className="text-lg font-bold mb-4">
+        {stats?.firstName ? `${stats.firstName}'s Stats` : "Your Stats"}
+      </h2>
 
       {loading ? (
         <div className="flex items-center justify-center py-8">
