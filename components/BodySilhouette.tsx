@@ -1,443 +1,288 @@
 "use client";
 
 export type OutfitTier = "rookie" | "warrior" | "elite" | "legend";
-export type HairStyle = "short" | "medium" | "long" | "bun";
-export type Gender = "male" | "female" | "neutral";
+export type HairStyle  = "short" | "medium" | "long" | "bun";
+export type Gender     = "male" | "female" | "neutral";
+export type AvatarState = "today" | "30days" | "90days";
+export type AvatarGoal  = "muscle_gain" | "fat_loss" | "recomp" | "maintain";
 
 export interface BodySilhouetteProps {
   gender: Gender;
-  bodyFatPct: number;    // 5–45
-  muscleLevel: number;   // 1–5
-  postureLevel: number;  // 1–5
-  skinTone: string;      // hex
+  bodyFatPct: number;
+  muscleLevel: number;
+  postureLevel: number;
+  skinTone: string;
   hairStyle: HairStyle;
   outfitTier: OutfitTier;
-  effects: {
-    glowRing: boolean;
-    dimmed: boolean;
-    shimmer: boolean;
-  };
+  effects: { glowRing: boolean; dimmed: boolean; shimmer: boolean };
   label: string;
+  state?: AvatarState;
+  goal?:  AvatarGoal;
 }
 
-const OUTFIT_COLORS: Record<OutfitTier, { shirt: string; pants: string; accent: string }> = {
-  rookie:  { shirt: "#374151", pants: "#1f2937", accent: "#6b7280" },
-  warrior: { shirt: "#1e40af", pants: "#1e3a8a", accent: "#3b82f6" },
-  elite:   { shirt: "#6d28d9", pants: "#4c1d95", accent: "#a78bfa" },
-  legend:  { shirt: "#b45309", pants: "#78350f", accent: "#fbbf24" },
+// ─── Morph tables ─────────────────────────────────────────────────────────────
+// All scales are horizontal (X-axis only), pivoting about the body centre x=60.
+// Torso controls chest/waist/hip width; arm controls arm width + outward shift.
+
+const TORSO_SCALE: Record<AvatarGoal, Record<AvatarState, number>> = {
+  muscle_gain: { today: 1.00, "30days": 1.05, "90days": 1.12 },
+  fat_loss:    { today: 1.00, "30days": 0.92, "90days": 0.82 },
+  recomp:      { today: 1.00, "30days": 0.98, "90days": 0.95 },
+  maintain:    { today: 1.00, "30days": 1.00, "90days": 1.00 },
 };
 
-function clamp(val: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, val));
-}
+const ARM_SCALE: Record<AvatarGoal, Record<AvatarState, number>> = {
+  muscle_gain: { today: 1.00, "30days": 1.08, "90days": 1.18 },
+  fat_loss:    { today: 1.00, "30days": 0.95, "90days": 0.88 },
+  recomp:      { today: 1.00, "30days": 1.01, "90days": 1.03 },
+  maintain:    { today: 1.00, "30days": 1.00, "90days": 1.00 },
+};
 
-function buildBodyPath(
-  bodyFatPct: number,
-  muscleLevel: number,
-  postureLevel: number,
-  gender: Gender
-): string {
-  const bf = clamp(bodyFatPct, 5, 45);
-  const ml = clamp(muscleLevel, 1, 5);
-  const pl = clamp(postureLevel, 1, 5);
+// ─── Glow + label per state ───────────────────────────────────────────────────
 
-  // Center X
-  const cx = 60;
+const GLOW = {
+  today:    { color: "#22c55e", opacity: 0.50, blur: 4.0 },
+  "30days": { color: "#60a5fa", opacity: 0.45, blur: 3.5 },
+  "90days": { color: "#818cf8", opacity: 0.72, blur: 5.5 },
+} satisfies Record<AvatarState, { color: string; opacity: number; blur: number }>;
 
-  // Shoulder width — broader with muscle, slightly narrower at low BF
-  const shoulderW = 22 + ml * 4 + (gender === "male" ? 4 : 0);
+const STATE_LABEL = {
+  today:    { text: "CURRENT", color: "#22c55e" },
+  "30days": { text: "30 DAYS", color: "#60a5fa" },
+  "90days": { text: "90 DAYS", color: "#818cf8" },
+} satisfies Record<AvatarState, { text: string; color: string }>;
 
-  // Hip width — wider with body fat, wider for female
-  const hipW = 18 + bf * 0.38 + (gender === "female" ? 6 : 0);
+// ─── Muscle-line style per goal × state ──────────────────────────────────────
 
-  // Waist — narrower with muscle, wider with BF
-  const waistW = Math.max(12, 16 + bf * 0.18 - ml * 1.5);
-
-  // Belly bulge (only above ~18% BF)
-  const belly = Math.max(0, (bf - 18) * 0.55);
-
-  // Vertical positions (posture: higher pl = more upright = neck higher, chest out)
-  const neckY = 68 - pl * 1.5;
-  const shoulderY = neckY + 6;
-  const chestY = shoulderY + 16;
-  const waistY = chestY + 22;
-  const hipY = waistY + 14;
-  const kneeY = hipY + 38;
-  const footY = kneeY + 42;
-
-  // Arm positions
-  const armOutX = cx + shoulderW + 5 + (bf > 25 ? (bf - 25) * 0.3 : 0);
-  const elbowX = cx + shoulderW + 2 + (bf > 20 ? (bf - 20) * 0.2 : 0);
-  const elbowY = waistY - 4;
-  const wristX = cx + shoulderW - 2;
-  const wristY = hipY + 2;
-
-  // Left arm mirror
-  const lArmOutX = cx - shoulderW - 5 - (bf > 25 ? (bf - 25) * 0.3 : 0);
-  const lElbowX = cx - shoulderW - 2 - (bf > 20 ? (bf - 20) * 0.2 : 0);
-  const lWristX = cx - shoulderW + 2;
-
-  // Leg width
-  const thighW = 9 + bf * 0.22 + (gender === "female" ? 2 : 0);
-  const calfW = 5 + bf * 0.1;
-
-  // Build path — clockwise from top of right shoulder
-  return [
-    // Neck top-right
-    `M ${cx + 5} ${neckY}`,
-    // Right shoulder curve
-    `C ${cx + 10} ${neckY - 2}, ${cx + shoulderW - 4} ${shoulderY - 4}, ${cx + shoulderW} ${shoulderY}`,
-    // Right outer arm down to elbow
-    `C ${armOutX} ${shoulderY + 10}, ${elbowX + 2} ${elbowY - 8}, ${elbowX} ${elbowY}`,
-    // Elbow to wrist
-    `C ${elbowX - 1} ${elbowY + 12}, ${wristX + 2} ${wristY - 6}, ${wristX} ${wristY}`,
-    // Right side of body down — chest with slight belly bulge
-    `C ${cx + shoulderW - 2} ${chestY}, ${cx + waistW + belly + 2} ${waistY - 4}, ${cx + waistW + belly} ${waistY}`,
-    // Waist to hip right
-    `C ${cx + waistW + belly} ${waistY + 6}, ${cx + hipW} ${hipY - 4}, ${cx + hipW} ${hipY}`,
-    // Right leg outer
-    `C ${cx + thighW + (bf > 20 ? 3 : 1)} ${hipY + 14}, ${cx + thighW + 1} ${kneeY - 8}, ${cx + thighW} ${kneeY}`,
-    `C ${cx + calfW + 2} ${kneeY + 12}, ${cx + calfW + 1} ${footY - 8}, ${cx + calfW} ${footY}`,
-    // Foot bottom
-    `L ${cx - calfW} ${footY}`,
-    // Left leg outer
-    `C ${cx - calfW - 1} ${footY - 8}, ${cx - calfW - 2} ${kneeY + 12}, ${cx - thighW} ${kneeY}`,
-    `C ${cx - thighW - 1} ${kneeY - 8}, ${cx - thighW - (bf > 20 ? 3 : 1)} ${hipY + 14}, ${cx - hipW} ${hipY}`,
-    // Hip to waist left
-    `C ${cx - hipW} ${hipY - 4}, ${cx - waistW - belly} ${waistY + 6}, ${cx - waistW - belly} ${waistY}`,
-    // Left body up to shoulder
-    `C ${cx - waistW - belly - 2} ${waistY - 4}, ${cx - shoulderW + 2} ${chestY}, ${lWristX} ${wristY}`,
-    // Left wrist to elbow
-    `C ${lWristX - 2} ${wristY - 6}, ${lElbowX + 1} ${elbowY + 12}, ${lElbowX} ${elbowY}`,
-    // Left elbow to shoulder
-    `C ${lElbowX - 2} ${elbowY - 8}, ${lArmOutX} ${shoulderY + 10}, ${cx - shoulderW} ${shoulderY}`,
-    // Left shoulder to neck
-    `C ${cx - shoulderW + 4} ${shoulderY - 4}, ${cx - 10} ${neckY - 2}, ${cx - 5} ${neckY}`,
-    `Z`,
-  ].join(" ");
-}
-
-function HairPath({ style, cx, headTopY, skinTone }: {
-  style: HairStyle;
-  cx: number;
-  headTopY: number;
-  skinTone: string;
-}) {
-  const hairColor = "#2d1b0e";
-
-  if (style === "short") {
-    return (
-      <ellipse
-        cx={cx}
-        cy={headTopY + 6}
-        rx={11}
-        ry={8}
-        fill={hairColor}
-      />
-    );
+function muscleStyle(goal: AvatarGoal, state: AvatarState) {
+  if (goal === "muscle_gain") {
+    if (state === "30days") return { sw: 1.0, op: 0.58 };
+    if (state === "90days") return { sw: 1.4, op: 0.78 };
   }
-  if (style === "medium") {
-    return (
-      <g fill={hairColor}>
-        <ellipse cx={cx} cy={headTopY + 5} rx={11} ry={7} />
-        <rect x={cx - 10} y={headTopY + 8} width={4} height={14} rx={2} />
-        <rect x={cx + 6} y={headTopY + 8} width={4} height={14} rx={2} />
-      </g>
-    );
-  }
-  if (style === "long") {
-    return (
-      <g fill={hairColor}>
-        <ellipse cx={cx} cy={headTopY + 5} rx={11} ry={7} />
-        <rect x={cx - 11} y={headTopY + 8} width={5} height={28} rx={2} />
-        <rect x={cx + 6} y={headTopY + 8} width={5} height={28} rx={2} />
-        <rect x={cx - 4} y={headTopY + 10} width={8} height={22} rx={2} />
-      </g>
-    );
-  }
-  // bun
-  return (
-    <g fill={hairColor}>
-      <ellipse cx={cx} cy={headTopY + 8} rx={10} ry={6} />
-      <circle cx={cx} cy={headTopY - 2} r={5} />
-    </g>
-  );
+  if (goal === "fat_loss" && state === "90days") return { sw: 1.1, op: 0.64 };
+  return { sw: 0.85, op: 0.42 };
 }
 
-function OutfitLayer({
-  tier,
-  cx,
-  shoulderY,
-  waistY,
-  hipY,
-  footY,
-  shoulderW,
-  hipW,
-}: {
-  tier: OutfitTier;
-  cx: number;
-  shoulderY: number;
-  waistY: number;
-  hipY: number;
-  footY: number;
-  shoulderW: number;
-  hipW: number;
-}) {
-  const colors = OUTFIT_COLORS[tier];
-  const shirtBottom = waistY + 6;
-  const pantsBottom = footY;
+// ─── SVG helpers ─────────────────────────────────────────────────────────────
 
-  return (
-    <g opacity={0.82}>
-      {/* Shirt */}
-      <path
-        d={`M ${cx - shoulderW + 2} ${shoulderY + 4}
-            L ${cx + shoulderW - 2} ${shoulderY + 4}
-            L ${cx + shoulderW - 4} ${shirtBottom}
-            L ${cx - shoulderW + 4} ${shirtBottom} Z`}
-        fill={colors.shirt}
-      />
-      {/* Pants */}
-      <path
-        d={`M ${cx - hipW + 2} ${hipY}
-            L ${cx + hipW - 2} ${hipY}
-            L ${cx + hipW - 2} ${pantsBottom}
-            L ${cx - hipW + 2} ${pantsBottom} Z`}
-        fill={colors.pants}
-      />
-      {/* Collar accent */}
-      <line
-        x1={cx - 4} y1={shoulderY + 4}
-        x2={cx + 4} y2={shoulderY + 4}
-        stroke={colors.accent} strokeWidth={1.5} strokeLinecap="round"
-      />
-      {/* Belt line */}
-      <line
-        x1={cx - shoulderW + 4} y1={shirtBottom}
-        x2={cx + shoulderW - 4} y2={shirtBottom}
-        stroke={colors.accent} strokeWidth={1} opacity={0.7}
-      />
-    </g>
-  );
+/** Horizontal scale about a pivot X, returns SVG transform string or undefined. */
+function hScale(pivotX: number, s: number): string | undefined {
+  if (s === 1) return undefined;
+  return `translate(${pivotX} 0) scale(${s} 1) translate(${-pivotX} 0)`;
 }
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function BodySilhouette({
-  gender,
-  bodyFatPct,
-  muscleLevel,
-  postureLevel,
-  skinTone,
-  hairStyle,
-  outfitTier,
-  effects,
   label,
+  state = "today",
+  goal  = "recomp",
 }: BodySilhouetteProps) {
-  const bf = clamp(bodyFatPct, 5, 45);
-  const ml = clamp(muscleLevel, 1, 5);
-  const pl = clamp(postureLevel, 1, 5);
+  const uid    = `${label.replace(/\s+/g, "-")}-${state}`;
+  const glow   = GLOW[state];
+  const lbl    = STATE_LABEL[state];
+  const ml     = muscleStyle(goal, state);
 
-  const cx = 60;
-
-  // Recompute key Y positions for overlay layers (must match buildBodyPath)
-  const neckY = 68 - pl * 1.5;
-  const shoulderY = neckY + 6;
-  const chestY = shoulderY + 16;
-  const waistY = chestY + 22;
-  const hipY = waistY + 14;
-  const kneeY = hipY + 38;
-  const footY = kneeY + 42;
-
-  const shoulderW = 22 + ml * 4 + (gender === "male" ? 4 : 0);
-  const hipW = 18 + bf * 0.38 + (gender === "female" ? 6 : 0);
-  const belly = Math.max(0, (bf - 18) * 0.55);
-
-  // Head
-  const headR = 11;
-  const headCY = neckY - headR - 1;
-  const headTopY = headCY - headR;
-
-  const bodyPath = buildBodyPath(bf, ml, pl, gender);
-
-  // Skin shadow (slightly darker)
-  const skinShadow = skinTone + "cc";
+  const torsoXf = hScale(60, TORSO_SCALE[goal][state]);
+  const armXf   = hScale(60, ARM_SCALE[goal][state]);
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <div className="relative">
-        <svg
-          viewBox="0 0 120 240"
-          width={130}
-          height={260}
-          style={{
-            filter: effects.dimmed
-              ? "brightness(0.6) saturate(0.4)"
-              : undefined,
-            transition: "filter 0.4s ease",
-          }}
-        >
-          <defs>
-            {effects.glowRing && (
-              <filter id="glow-green" x="-30%" y="-30%" width="160%" height="160%">
-                <feGaussianBlur stdDeviation="4" result="blur" />
-                <feFlood floodColor="#22c55e" floodOpacity="0.7" result="color" />
-                <feComposite in="color" in2="blur" operator="in" result="glow" />
-                <feMerge>
-                  <feMergeNode in="glow" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            )}
-            {effects.shimmer && (
-              <linearGradient id="shimmer-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#fbbf24" stopOpacity="0" />
-                <stop offset="50%" stopColor="#fbbf24" stopOpacity="0.5" />
-                <stop offset="100%" stopColor="#fbbf24" stopOpacity="0" />
-                <animateTransform
-                  attributeName="gradientTransform"
-                  type="translate"
-                  from="-1 0"
-                  to="1 0"
-                  dur="1.8s"
-                  repeatCount="indefinite"
-                />
-              </linearGradient>
-            )}
-            <radialGradient id={`skin-grad-${label}`} cx="40%" cy="35%" r="60%">
-              <stop offset="0%" stopColor={skinTone} />
-              <stop offset="100%" stopColor={skinShadow} />
-            </radialGradient>
-          </defs>
+      <svg
+        viewBox="0 0 120 262"
+        width={130}
+        height={284}
+        overflow="visible"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <defs>
+          {/* Body fill — cool highlight fading to deep indigo */}
+          <radialGradient id={`fill-${uid}`} cx="38%" cy="28%" r="70%">
+            <stop offset="0%"   stopColor="#c7d2fe" />
+            <stop offset="40%"  stopColor="#818cf8" />
+            <stop offset="100%" stopColor="#3730a3" />
+          </radialGradient>
 
-          {/* Glow ring behind body */}
-          {effects.glowRing && (
-            <ellipse
-              cx={cx}
-              cy={(headCY + footY) / 2}
-              rx={shoulderW + 14}
-              ry={(footY - headCY) / 2 + 10}
-              fill="none"
-              stroke="#22c55e"
-              strokeWidth={3}
-              opacity={0.45}
-              filter="url(#glow-green)"
-            />
-          )}
+          {/* State-specific coloured glow */}
+          <filter id={`glow-${uid}`} x="-40%" y="-15%" width="180%" height="130%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation={glow.blur} result="blur" />
+            <feFlood floodColor={glow.color} floodOpacity={glow.opacity} result="color" />
+            <feComposite in="color" in2="blur" operator="in" result="glow" />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
 
-          {/* Body */}
-          <path
-            d={bodyPath}
-            fill={`url(#skin-grad-${label})`}
-            stroke={skinShadow}
-            strokeWidth={0.5}
-          />
-
-          {/* Outfit */}
-          <OutfitLayer
-            tier={outfitTier}
-            cx={cx}
-            shoulderY={shoulderY}
-            waistY={waistY}
-            hipY={hipY}
-            footY={footY}
-            shoulderW={shoulderW - 2}
-            hipW={hipW - 2}
-          />
-
-          {/* Neck */}
-          <rect
-            x={cx - 4}
-            y={neckY}
-            width={8}
-            height={headR}
-            rx={3}
-            fill={`url(#skin-grad-${label})`}
-          />
-
-          {/* Head */}
+        {/* ── TODAY: animated green pulse ring ── */}
+        {state === "today" && (
           <ellipse
-            cx={cx}
-            cy={headCY}
-            rx={headR}
-            ry={headR + 1}
-            fill={`url(#skin-grad-${label})`}
-            stroke={skinShadow}
-            strokeWidth={0.5}
-          />
-
-          {/* Hair (renders on top of head) */}
-          <HairPath
-            style={hairStyle}
-            cx={cx}
-            headTopY={headTopY}
-            skinTone={skinTone}
-          />
-
-          {/* Face details */}
-          {/* Eyes */}
-          <ellipse cx={cx - 3.5} cy={headCY - 1} rx={1.5} ry={1.8} fill="#1a1a2e" />
-          <ellipse cx={cx + 3.5} cy={headCY - 1} rx={1.5} ry={1.8} fill="#1a1a2e" />
-          {/* Mouth — slight smile */}
-          <path
-            d={`M ${cx - 3} ${headCY + 4} Q ${cx} ${headCY + 6} ${cx + 3} ${headCY + 4}`}
+            cx="60" cy="131" rx="52" ry="112"
             fill="none"
-            stroke="#7c3149"
-            strokeWidth={1}
-            strokeLinecap="round"
+            stroke="#22c55e"
+            strokeWidth="2.5"
+            opacity="0.35"
+            className="animate-pulse"
           />
-
-          {/* Belly definition line (only if low BF + high muscle) */}
-          {bf < 15 && ml >= 3 && (
-            <path
-              d={`M ${cx - 4} ${waistY - 8} Q ${cx} ${waistY - 5} ${cx + 4} ${waistY - 8}`}
-              fill="none"
-              stroke={skinShadow}
-              strokeWidth={0.8}
-              opacity={0.6}
-            />
-          )}
-
-          {/* Shimmer overlay */}
-          {effects.shimmer && (
-            <rect
-              x={0}
-              y={0}
-              width={120}
-              height={240}
-              fill="url(#shimmer-grad)"
-              opacity={0.6}
-            />
-          )}
-
-          {/* Dimmed tired overlay */}
-          {effects.dimmed && (
-            <>
-              <rect x={0} y={0} width={120} height={240} fill="rgba(0,0,0,0.2)" />
-              {/* Tired eyes — slightly drooped */}
-              <path
-                d={`M ${cx - 5} ${headCY - 2.5} L ${cx - 2} ${headCY - 2.5}`}
-                stroke="#1a1a2e"
-                strokeWidth={1.8}
-                strokeLinecap="round"
-              />
-              <path
-                d={`M ${cx + 2} ${headCY - 2.5} L ${cx + 5} ${headCY - 2.5}`}
-                stroke="#1a1a2e"
-                strokeWidth={1.8}
-                strokeLinecap="round"
-              />
-            </>
-          )}
-        </svg>
-
-        {/* Legend badge */}
-        {outfitTier === "legend" && (
-          <div className="absolute -top-1 -right-1 text-xs">⚡</div>
         )}
-      </div>
 
-      {/* Label */}
-      <span className="text-xs font-semibold text-bw-muted tracking-wide uppercase">
-        {label}
+        {/* ── BODY SHAPES ─────────────────────────────────────────────── */}
+        <g
+          fill={`url(#fill-${uid})`}
+          filter={`url(#glow-${uid})`}
+          stroke="#6366f1"
+          strokeWidth="0.6"
+          strokeLinejoin="round"
+        >
+          {/* HEAD — no morph */}
+          <ellipse cx="60" cy="20" rx="13" ry="14" />
+
+          {/* NECK — no morph */}
+          <rect x="55" y="32" width="10" height="14" rx="3" />
+
+          {/*
+            TORSO + LEGS
+            One closed path.  Clockwise from right collar:
+              → right chest → waist → hip → crotch outer
+              → right leg outer → right foot
+              → right inner leg UP (leg gap created here)
+              → across crotch gap
+              → left inner leg DOWN
+              → left foot → left outer leg UP
+              → left chest → left collar → neck → close
+          */}
+          <g transform={torsoXf}>
+            <path d="
+              M 67 44
+              C 78 46, 86 50, 87 57
+              C 87 73, 85 90, 83 108
+              C 82 118, 83 127, 85 135
+              C 86 139, 84 142, 77 143
+              C 80 147, 80 163, 79 180
+              C 78 194, 75 212, 73 228
+              C 71 236, 70 243, 70 248
+              C 70 252, 73 255, 82 255
+              L 89 255
+              C 91 252, 90 249, 85 248
+              C 78 248, 70 248, 65 247
+              C 65 242, 66 231, 67 217
+              C 68 200, 67 184, 66 169
+              C 65 154, 65 148, 65 144
+              C 63 143, 57 143, 55 144
+              C 55 148, 55 154, 54 169
+              C 53 184, 52 200, 53 217
+              C 54 231, 55 242, 55 247
+              C 50 248, 42 248, 35 248
+              C 30 249, 29 252, 31 255
+              L 38 255
+              C 47 255, 50 252, 50 248
+              C 50 243, 49 236, 47 228
+              C 45 212, 42 194, 41 180
+              C 40 163, 40 147, 43 143
+              C 36 142, 35 139, 35 135
+              C 37 127, 38 118, 37 108
+              C 35 90, 33 73, 33 57
+              C 34 50, 42 46, 53 44
+              C 56 43, 60 42, 64 43
+              C 65 43, 66 44, 67 44
+              Z
+            " />
+          </g>
+
+          {/*
+            RIGHT ARM
+            Clockwise: inner shoulder → across shoulder top → outer arm down
+            → hand → inner arm up → close.
+          */}
+          <g transform={armXf}>
+            <path d="
+              M 87 57
+              C 91 53, 96 52, 99 56
+              C 105 62, 111 79, 111 104
+              C 111 122, 108 141, 104 154
+              C 101 163, 98 171, 96 177
+              C 93 181, 90 181, 89 177
+              C 89 171, 89 158, 89 145
+              C 89 127, 91 109, 91 94
+              C 91 76, 89 62, 87 57
+              Z
+            " />
+          </g>
+
+          {/*
+            LEFT ARM (mirror of right)
+            Clockwise: inner shoulder → inner arm down → hand → outer arm up → close.
+          */}
+          <g transform={armXf}>
+            <path d="
+              M 33 57
+              C 29 62, 29 76, 29 94
+              C 29 109, 31 127, 31 145
+              C 31 158, 31 171, 31 177
+              C 30 181, 27 181, 24 177
+              C 22 171, 19 163, 16 154
+              C 12 141,  9 122,  9 104
+              C  9  79, 15  62, 21  56
+              C 24  52, 29  53, 33  57
+              Z
+            " />
+          </g>
+        </g>
+
+        {/* ── MUSCLE DEFINITION ─────────────────────────────────────────── */}
+        {/* Drawn in original coordinate space — strokeWidth/opacity vary by state */}
+        <g fill="none" stroke="#3730a3" strokeLinecap="round" strokeLinejoin="round">
+          {/* Sternum */}
+          <line x1="60" y1="52" x2="60" y2="94"
+            strokeWidth={ml.sw} opacity={ml.op * 1.25} />
+          {/* Pec fold */}
+          <path d="M 42 68 C 50 75, 60 76, 70 75 C 76 73, 82 69, 85 65"
+            strokeWidth={ml.sw} opacity={ml.op} />
+          {/* Upper abs */}
+          <path d="M 49 95 C 55 99, 65 99, 71 95"
+            strokeWidth={ml.sw} opacity={ml.op} />
+          {/* Lower abs */}
+          <path d="M 50 107 C 56 111, 64 111, 70 107"
+            strokeWidth={ml.sw} opacity={ml.op * 0.88} />
+          {/* Obliques */}
+          <path d="M 39 108 C 42 117, 44 126, 42 134"
+            strokeWidth={ml.sw * 0.85} opacity={ml.op * 0.72} />
+          <path d="M 81 108 C 78 117, 76 126, 78 134"
+            strokeWidth={ml.sw * 0.85} opacity={ml.op * 0.72} />
+          {/* Quad highlights */}
+          <path d="M 73 150 C 74 165, 75 178, 74 190"
+            strokeWidth={ml.sw * 0.78} opacity={ml.op * 0.65} />
+          <path d="M 47 150 C 46 165, 45 178, 46 190"
+            strokeWidth={ml.sw * 0.78} opacity={ml.op * 0.65} />
+        </g>
+
+        {/* ── COLLARBONE HIGHLIGHTS ─────────────────────────────────────── */}
+        <g fill="none" stroke="#c7d2fe" strokeWidth="0.9" strokeLinecap="round" opacity="0.45">
+          <path d="M 44 53 C 52 49, 60 49, 60 49" />
+          <path d="M 76 53 C 68 49, 60 49, 60 49" />
+        </g>
+
+        {/* ── FACE ──────────────────────────────────────────────────────── */}
+        <ellipse cx="56" cy="20" rx="1.5" ry="1.8" fill="#1e1b4b" />
+        <ellipse cx="64" cy="20" rx="1.5" ry="1.8" fill="#1e1b4b" />
+        <path
+          d="M 57 27 Q 60 30 63 27"
+          fill="none" stroke="#312e81" strokeWidth="1" strokeLinecap="round"
+        />
+      </svg>
+
+      {/* ── STATE LABEL ── */}
+      <span
+        style={{
+          color: lbl.color,
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+        }}
+      >
+        {lbl.text}
       </span>
     </div>
   );

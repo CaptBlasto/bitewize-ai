@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import BodySilhouette, { OutfitTier, HairStyle, Gender } from "@/components/BodySilhouette";
+import BodySilhouette, { OutfitTier, HairStyle, Gender, AvatarGoal } from "@/components/BodySilhouette";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -354,6 +354,8 @@ export default function AvatarClient({ userId, profile, initialBodyStats, hasTod
                     outfitTier={outfitTier}
                     effects={effects}
                     label="Today"
+                    state="today"
+                    goal={form.goal as AvatarGoal}
                   />
                   <div className="flex flex-wrap justify-center gap-1.5 mt-1">
                     <span className="px-2 py-0.5 rounded-full bg-bw-border text-xs text-bw-muted">
@@ -377,6 +379,8 @@ export default function AvatarClient({ userId, profile, initialBodyStats, hasTod
                     outfitTier={outfitTier}
                     effects={{ glowRing: false, dimmed: false, shimmer: false }}
                     label="30 Days"
+                    state="30days"
+                    goal={form.goal as AvatarGoal}
                   />
                   <div className="flex flex-wrap justify-center gap-1.5 mt-1">
                     <span className="px-2 py-0.5 rounded-full bg-bw-blue/10 border border-bw-blue/20 text-xs text-bw-blue">
@@ -400,6 +404,8 @@ export default function AvatarClient({ userId, profile, initialBodyStats, hasTod
                     outfitTier={outfitTier}
                     effects={{ glowRing: false, dimmed: false, shimmer: false }}
                     label="90 Days"
+                    state="90days"
+                    goal={form.goal as AvatarGoal}
                   />
                   <div className="flex flex-wrap justify-center gap-1.5 mt-1">
                     <span className="px-2 py-0.5 rounded-full bg-bw-purple/10 border border-bw-purple/20 text-xs text-bw-purple">
