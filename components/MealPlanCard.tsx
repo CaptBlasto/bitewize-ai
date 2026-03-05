@@ -61,6 +61,7 @@ interface Props {
   userId: string;
   selectedDate: string;
   onPlanGenerated?: () => void;
+  onMealPlanChange?: (plan: MealPlan | null) => void;
 }
 
 // ─── Meal type badge config ───────────────────────────────────────────────────
@@ -78,7 +79,7 @@ function mealBadgeCls(type: string) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function MealPlanCard({ userPlan, selectedDate, onPlanGenerated }: Props) {
+export default function MealPlanCard({ userPlan, selectedDate, onPlanGenerated, onMealPlanChange }: Props) {
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -99,6 +100,7 @@ export default function MealPlanCard({ userPlan, selectedDate, onPlanGenerated }
       const res = await fetch(`/api/meal-history?date=${date}`);
       const data = await res.json();
       setMealPlan(data ?? null);
+      onMealPlanChange?.(data ?? null);
     } catch {
       setError("Failed to load meal plan.");
     } finally {
@@ -122,6 +124,7 @@ export default function MealPlanCard({ userPlan, selectedDate, onPlanGenerated }
       const data = await res.json();
       setMealPlan(data);
       setExpanded(0);
+      onMealPlanChange?.(data);
       onPlanGenerated?.();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to generate. Please try again.");
@@ -130,7 +133,6 @@ export default function MealPlanCard({ userPlan, selectedDate, onPlanGenerated }
     }
   }
 
-  const isPro = userPlan === "premium";
   const displayDate = new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric",
   });
@@ -145,26 +147,14 @@ export default function MealPlanCard({ userPlan, selectedDate, onPlanGenerated }
           <p className="text-xs text-bw-muted mt-0.5">{displayDate}</p>
         </div>
         {mealPlan && (
-          isPro ? (
-            <button
-              onClick={() => generatePlan(true)}
-              disabled={generating}
-              className="flex items-center gap-1.5 rounded-xl border border-bw-border px-3 py-1.5 text-xs font-medium text-bw-muted hover:text-bw-text hover:border-bw-purple/40 transition disabled:opacity-50"
-            >
-              <RefreshIcon />
-              Regenerate
-            </button>
-          ) : (
-            <div className="relative group">
-              <button className="flex items-center gap-1.5 rounded-xl border border-bw-border px-3 py-1.5 text-xs font-medium text-bw-muted opacity-50 cursor-not-allowed">
-                <LockIcon />
-                Regenerate
-              </button>
-              <div className="absolute right-0 top-8 z-10 hidden group-hover:block w-44 rounded-xl border border-bw-border bg-bw-card p-2 text-xs text-bw-muted shadow-lg">
-                Upgrade to Pro to regenerate meal plans
-              </div>
-            </div>
-          )
+          <button
+            onClick={() => generatePlan(true)}
+            disabled={generating}
+            className="flex items-center gap-1.5 rounded-xl border border-bw-border px-3 py-1.5 text-xs font-medium text-bw-muted hover:text-bw-text hover:border-bw-purple/40 transition disabled:opacity-50"
+          >
+            <RefreshIcon />
+            Regenerate
+          </button>
         )}
       </div>
 
@@ -418,13 +408,6 @@ function RefreshIcon() {
   );
 }
 
-function LockIcon() {
-  return (
-    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-    </svg>
-  );
-}
 
 function Spinner({ className = "h-5 w-5" }: { className?: string }) {
   return (

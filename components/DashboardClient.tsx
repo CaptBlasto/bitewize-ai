@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import MealPlanCard from "@/components/MealPlanCard";
 import MealCalendarCard from "@/components/MealCalendarCard";
 import WeeklyOverviewCard from "@/components/WeeklyOverviewCard";
 import NutritionStatsCard from "@/components/NutritionStatsCard";
 import XPStatsCard from "@/components/XPStatsCard";
+import NutritionCoach from "@/components/NutritionCoach";
 
 interface UserProfile {
   full_name: string | null;
@@ -31,6 +31,11 @@ export default function DashboardClient({ userId, email, profile }: Props) {
   const [selectedDate, setSelectedDate] = useState(today);
   const [weeklyRefreshKey, setWeeklyRefreshKey] = useState(0);
   const [xpRefreshKey, setXpRefreshKey] = useState(0);
+  const [activeMealPlan, setActiveMealPlan] = useState<Record<string, unknown> | null>(null);
+
+  const coachUserProfile = profile
+    ? { ...profile, tier: profile.plan }
+    : null;
 
   const displayName = profile?.full_name ?? email.split("@")[0] ?? "there";
   const userPlan = profile?.plan ?? "free";
@@ -53,15 +58,6 @@ export default function DashboardClient({ userId, email, profile }: Props) {
             Bitewize
           </span>
           <div className="flex items-center gap-3">
-            <Link
-              href="/avatar"
-              className="flex items-center gap-1.5 rounded-xl border border-bw-border bg-bw-card px-4 py-2 text-sm font-medium text-bw-muted hover:text-bw-text hover:border-bw-purple transition"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-              </svg>
-              {displayName}&apos;s Avatar
-            </Link>
             <button
               onClick={handleLogout}
               className="rounded-xl border border-bw-border bg-bw-card px-5 py-2 text-sm font-medium text-bw-muted hover:text-bw-text hover:border-bw-purple transition"
@@ -114,6 +110,7 @@ export default function DashboardClient({ userId, email, profile }: Props) {
               userPlan={userPlan}
               userId={userId}
               selectedDate={selectedDate}
+              onMealPlanChange={(plan) => setActiveMealPlan(plan as Record<string, unknown> | null)}
               onPlanGenerated={() => {
                 setWeeklyRefreshKey((k) => k + 1);
                 setXpRefreshKey((k) => k + 1);
@@ -134,6 +131,11 @@ export default function DashboardClient({ userId, email, profile }: Props) {
 
         </div>
       </main>
+
+      <NutritionCoach
+        mealPlan={activeMealPlan}
+        userProfile={coachUserProfile}
+      />
     </div>
   );
 }
