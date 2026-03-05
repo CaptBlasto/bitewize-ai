@@ -3,9 +3,17 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+interface AdditionalFoods {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
 function buildSystemPrompt(
   mealPlan: Record<string, unknown>,
-  userProfile: Record<string, unknown>
+  userProfile: Record<string, unknown>,
+  additionalFoods?: AdditionalFoods | null
 ): string {
   const macros = (mealPlan.macros as Record<string, unknown>) ?? {};
   const meals = Array.isArray(mealPlan.meals)
@@ -35,13 +43,17 @@ DAILY TOTALS:
 - Fat: ${macros.total_fat ?? 0}g
 - Fiber: ${macros.total_fiber ?? 0}g
 
-Be concise, encouraging, and specific to this user's meal plan. Reference their actual meals and goal when relevant. Keep responses under 200 words unless asked for more detail.`;
+Be concise, encouraging, and specific to this user's meal plan. Reference their actual meals and goal when relevant. Keep responses under 200 words unless asked for more detail.${
+    additionalFoods && (additionalFoods.calories > 0)
+      ? `\n\nADDITIONAL FOODS LOGGED TODAY (outside the meal plan):\n- Calories: +${additionalFoods.calories} kcal\n- Protein: +${additionalFoods.protein}g\n- Carbs: +${additionalFoods.carbs}g\n- Fat: +${additionalFoods.fat}g\nFactor these into your advice about whether the user is on track.`
+      : ""
+  }`;
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { messages, mealPlan, userProfile } = body;
+    const { messages, mealPlan, userProfile, additionalFoods } = body;
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
@@ -52,7 +64,8 @@ export async function POST(request: Request) {
 
     const systemPrompt = buildSystemPrompt(
       mealPlan ?? {},
-      userProfile ?? {}
+      userProfile ?? {},
+      additionalFoods ?? null
     );
 
     const response = await client.messages.create({

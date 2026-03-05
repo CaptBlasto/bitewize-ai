@@ -11,6 +11,7 @@ interface Message {
 interface Props {
   mealPlan: Record<string, unknown> | null;
   userProfile: Record<string, unknown> | null;
+  additionalFoods?: { calories: number; protein: number; carbs: number; fat: number } | null;
 }
 
 const STARTERS = [
@@ -19,7 +20,7 @@ const STARTERS = [
   "What should I eat more of?",
 ];
 
-export default function NutritionCoach({ mealPlan, userProfile }: Props) {
+export default function NutritionCoach({ mealPlan, userProfile, additionalFoods }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -87,6 +88,7 @@ export default function NutritionCoach({ mealPlan, userProfile }: Props) {
           messages: nextMessages,
           mealPlan,
           userProfile,
+          additionalFoods,
         }),
       });
 

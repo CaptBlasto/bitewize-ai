@@ -57,12 +57,20 @@ interface MealPlan {
   macros: Macros;
 }
 
+interface ExtraMacros {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
 interface Props {
   userPlan: string;
   userId: string;
   selectedDate: string;
   onPlanGenerated?: () => void;
   onMealPlanChange?: (plan: MealPlan | null) => void;
+  extraMacros?: ExtraMacros;
 }
 
 // ─── Meal type badge config ───────────────────────────────────────────────────
@@ -80,7 +88,7 @@ function mealBadgeCls(type: string) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function MealPlanCard({ userPlan, selectedDate, onPlanGenerated, onMealPlanChange }: Props) {
+export default function MealPlanCard({ userPlan, selectedDate, onPlanGenerated, onMealPlanChange, extraMacros }: Props) {
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -322,10 +330,30 @@ export default function MealPlanCard({ userPlan, selectedDate, onPlanGenerated, 
         <div ref={exportRef} className="rounded-xl bg-bw-card">
           {/* Macro summary pills */}
           <div className="flex flex-wrap gap-2 mb-5">
-            <MacroPill icon="🔥" label={`${mealPlan.macros.total_calories} cal`} color="bg-bw-purple/15 text-bw-purple" />
-            <MacroPill icon="💪" label={`${mealPlan.macros.total_protein}g protein`} color="bg-bw-blue/15 text-bw-blue" />
-            <MacroPill icon="🌾" label={`${mealPlan.macros.total_carbs}g carbs`} color="bg-emerald-500/15 text-emerald-400" />
-            <MacroPill icon="🥑" label={`${mealPlan.macros.total_fat}g fat`} color="bg-orange-500/15 text-orange-400" />
+            <MacroPill
+              icon="🔥"
+              label={`${mealPlan.macros.total_calories} cal`}
+              extra={extraMacros?.calories ? `+${extraMacros.calories}` : undefined}
+              color="bg-bw-purple/15 text-bw-purple"
+            />
+            <MacroPill
+              icon="💪"
+              label={`${mealPlan.macros.total_protein}g protein`}
+              extra={extraMacros?.protein ? `+${extraMacros.protein}g` : undefined}
+              color="bg-bw-blue/15 text-bw-blue"
+            />
+            <MacroPill
+              icon="🌾"
+              label={`${mealPlan.macros.total_carbs}g carbs`}
+              extra={extraMacros?.carbs ? `+${extraMacros.carbs}g` : undefined}
+              color="bg-emerald-500/15 text-emerald-400"
+            />
+            <MacroPill
+              icon="🥑"
+              label={`${mealPlan.macros.total_fat}g fat`}
+              extra={extraMacros?.fat ? `+${extraMacros.fat}g` : undefined}
+              color="bg-orange-500/15 text-orange-400"
+            />
             <MacroPill icon="💧" label={`${mealPlan.macros.water_oz}oz water`} color="bg-cyan-500/15 text-cyan-400" />
             <MacroPill icon="💰" label={`~${mealPlan.macros.estimated_daily_cost}/day`} color="bg-bw-border text-bw-muted" />
           </div>
@@ -489,10 +517,13 @@ function MealAccordion({
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 
-function MacroPill({ icon, label, color }: { icon: string; label: string; color: string }) {
+function MacroPill({ icon, label, extra, color }: { icon: string; label: string; extra?: string; color: string }) {
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${color}`}>
       {icon} {label}
+      {extra && (
+        <span className="text-amber-400 font-bold">{extra}</span>
+      )}
     </span>
   );
 }

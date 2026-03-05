@@ -11,6 +11,7 @@ import NutritionStatsCard from "@/components/NutritionStatsCard";
 import XPStatsCard from "@/components/XPStatsCard";
 import NutritionCoach from "@/components/NutritionCoach";
 import ProfileSettings from "@/components/ProfileSettings";
+import FoodLog, { type MacroTotals } from "@/components/FoodLog";
 
 interface UserProfile {
   full_name: string | null;
@@ -35,6 +36,7 @@ export default function DashboardClient({ userId, email, profile }: Props) {
   const [xpRefreshKey, setXpRefreshKey] = useState(0);
   const [activeMealPlan, setActiveMealPlan] = useState<Record<string, unknown> | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [extraMacros, setExtraMacros] = useState<MacroTotals>({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   const [profileData, setProfileData] = useState<UserProfile | null>(profile);
 
   async function fetchProfile() {
@@ -136,6 +138,12 @@ export default function DashboardClient({ userId, email, profile }: Props) {
                 setWeeklyRefreshKey((k) => k + 1);
                 setXpRefreshKey((k) => k + 1);
               }}
+              extraMacros={extraMacros}
+            />
+            <FoodLog
+              userId={userId}
+              date={selectedDate}
+              onTotalsChange={setExtraMacros}
             />
             <MealCalendarCard
               selectedDate={selectedDate}
@@ -156,6 +164,7 @@ export default function DashboardClient({ userId, email, profile }: Props) {
       <NutritionCoach
         mealPlan={activeMealPlan}
         userProfile={coachUserProfile}
+        additionalFoods={extraMacros.calories > 0 ? extraMacros : null}
       />
 
       <ProfileSettings
