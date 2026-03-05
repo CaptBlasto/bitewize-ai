@@ -51,6 +51,26 @@ function sumEntries(list: FoodEntry[]): MacroTotals {
   );
 }
 
+// Matches MealPlanCard pill style but with bg-white/10 base
+function MacroPill({ icon, label, color }: { icon: string; label: string; color: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold ${color}`}>
+      {icon} {label}
+    </span>
+  );
+}
+
+function EntryMacros({ calories, protein, carbs, fat }: { calories: number; protein: number; carbs: number; fat: number }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <MacroPill icon="🔥" label={`${calories} cal`} color="text-bw-purple" />
+      <MacroPill icon="💪" label={`${protein}g`} color="text-bw-blue" />
+      <MacroPill icon="🌾" label={`${carbs}g`} color="text-emerald-400" />
+      <MacroPill icon="🥑" label={`${fat}g`} color="text-orange-400" />
+    </div>
+  );
+}
+
 export default function FoodLog({ userId, date, onTotalsChange }: Props) {
   const [isOpen, setIsOpen] = useState(true);
   const [showInput, setShowInput] = useState(false);
@@ -61,6 +81,7 @@ export default function FoodLog({ userId, date, onTotalsChange }: Props) {
   const [selectedMeal, setSelectedMeal] = useState<string>("Breakfast");
   const [entries, setEntries] = useState<FoodEntry[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchEntries() {
@@ -91,6 +112,7 @@ export default function FoodLog({ userId, date, onTotalsChange }: Props) {
     setInputValue("");
     setPendingFood(null);
     setLookupError(null);
+    setSaveError(null);
   }
 
   async function handleLookup() {
@@ -119,10 +141,17 @@ export default function FoodLog({ userId, date, onTotalsChange }: Props) {
 
   async function handleConfirm() {
     if (!pendingFood) return;
+
+    if (!userId) {
+      console.warn("FoodLog: userId is null, cannot insert");
+      return;
+    }
+
     setIsSaving(true);
+    setSaveError(null);
 
     const supabase = createClient();
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("food_log")
       .insert({
         user_id: userId,
@@ -132,14 +161,22 @@ export default function FoodLog({ userId, date, onTotalsChange }: Props) {
         protein: pendingFood.protein,
         carbs: pendingFood.carbs,
         fat: pendingFood.fat,
-        serving_size: pendingFood.servingSize,
-        meal_type: selectedMeal,
+        meal_type: selectedMeal.toLowerCase(),
       })
       .select("id, food_name, calories, protein, carbs, fat, meal_type, serving_size")
       .single();
 
+    console.log("Insert result:", { data, error });
+
+    if (error) {
+      setSaveError(`Failed to save: ${error.message}`);
+      setIsSaving(false);
+      return;
+    }
+
     if (data) {
-      updateEntries([...entries, data as FoodEntry]);
+      const updated = [...entries, data as FoodEntry];
+      updateEntries(updated);
     }
 
     setIsSaving(false);
@@ -227,25 +264,17 @@ export default function FoodLog({ userId, date, onTotalsChange }: Props) {
           {/* Confirmation card */}
           {pendingFood && !isLookingUp && (
             <div className="rounded-xl border border-bw-purple/30 bg-bw-purple/5 p-4 space-y-3">
-              <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="space-y-2">
                 <div>
                   <p className="font-medium text-bw-text">{pendingFood.foodName}</p>
                   <p className="text-xs text-bw-muted mt-0.5">{pendingFood.servingSize}</p>
                 </div>
-                <div className="flex gap-3 text-xs text-bw-muted">
-                  <span>
-                    <span className="font-semibold text-bw-text">{pendingFood.calories}</span> cal
-                  </span>
-                  <span>
-                    P <span className="font-semibold text-bw-text">{pendingFood.protein}g</span>
-                  </span>
-                  <span>
-                    C <span className="font-semibold text-bw-text">{pendingFood.carbs}g</span>
-                  </span>
-                  <span>
-                    F <span className="font-semibold text-bw-text">{pendingFood.fat}g</span>
-                  </span>
-                </div>
+                <EntryMacros
+                  calories={pendingFood.calories}
+                  protein={pendingFood.protein}
+                  carbs={pendingFood.carbs}
+                  fat={pendingFood.fat}
+                />
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
@@ -280,62 +309,47 @@ export default function FoodLog({ userId, date, onTotalsChange }: Props) {
                   </button>
                 </div>
               </div>
+
+              {saveError && (
+                <p className="text-xs text-red-400">{saveError}</p>
+              )}
             </div>
           )}
 
-          {/* Food table */}
+          {/* Food log list */}
           {entries.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-bw-border text-xs text-bw-muted">
-                    <th className="pb-2 text-left font-medium">Food</th>
-                    <th className="pb-2 text-right font-medium">Cals</th>
-                    <th className="pb-2 text-right font-medium">P</th>
-                    <th className="pb-2 text-right font-medium">C</th>
-                    <th className="pb-2 text-right font-medium">F</th>
-                    <th className="pb-2 text-right font-medium">Meal</th>
-                    <th className="pb-2 w-8" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-bw-border/50">
-                  {entries.map((entry) => (
-                    <tr key={entry.id} className="group">
-                      <td className="py-2 pr-4 text-bw-text">{entry.food_name}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums text-bw-muted">
-                        {entry.calories}
-                      </td>
-                      <td className="py-2 pr-3 text-right tabular-nums text-bw-muted">
-                        {entry.protein}g
-                      </td>
-                      <td className="py-2 pr-3 text-right tabular-nums text-bw-muted">
-                        {entry.carbs}g
-                      </td>
-                      <td className="py-2 pr-3 text-right tabular-nums text-bw-muted">
-                        {entry.fat}g
-                      </td>
-                      <td className="py-2 pr-3 text-right text-xs text-bw-muted">
+            <div className="divide-y divide-bw-border/50">
+              {entries.map((entry) => (
+                <div key={entry.id} className="group flex items-start justify-between gap-3 py-3">
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-bw-text truncate">{entry.food_name}</span>
+                      <span className="shrink-0 rounded-full bg-bw-border px-2 py-0.5 text-[10px] font-medium text-bw-muted">
                         {entry.meal_type}
-                      </td>
-                      <td className="py-2 text-right">
-                        <button
-                          onClick={() => handleDelete(entry.id)}
-                          className="rounded-lg p-1 text-bw-muted opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-red-400/10 transition"
-                          aria-label="Delete entry"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </span>
+                    </div>
+                    <EntryMacros
+                      calories={entry.calories}
+                      protein={entry.protein}
+                      carbs={entry.carbs}
+                      fat={entry.fat}
+                    />
+                  </div>
+                  <button
+                    onClick={() => handleDelete(entry.id)}
+                    className="mt-0.5 rounded-lg p-1 text-bw-muted opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-red-400/10 transition shrink-0"
+                    aria-label="Delete entry"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
 
           {/* Extra totals */}
           {entries.length > 0 && (
-            <p className="text-sm font-medium text-amber-400">
+            <p className="text-sm font-medium text-amber-400 pt-1">
               Extra today: +{totals.calories} cal · +{totals.protein}g protein · +{totals.carbs}g carbs · +{totals.fat}g fat
             </p>
           )}
