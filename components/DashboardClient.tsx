@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Settings } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import MealPlanCard from "@/components/MealPlanCard";
 import MealCalendarCard from "@/components/MealCalendarCard";
@@ -9,6 +10,7 @@ import WeeklyOverviewCard from "@/components/WeeklyOverviewCard";
 import NutritionStatsCard from "@/components/NutritionStatsCard";
 import XPStatsCard from "@/components/XPStatsCard";
 import NutritionCoach from "@/components/NutritionCoach";
+import ProfileSettings from "@/components/ProfileSettings";
 
 interface UserProfile {
   full_name: string | null;
@@ -32,13 +34,25 @@ export default function DashboardClient({ userId, email, profile }: Props) {
   const [weeklyRefreshKey, setWeeklyRefreshKey] = useState(0);
   const [xpRefreshKey, setXpRefreshKey] = useState(0);
   const [activeMealPlan, setActiveMealPlan] = useState<Record<string, unknown> | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [profileData, setProfileData] = useState<UserProfile | null>(profile);
 
-  const coachUserProfile = profile
-    ? { ...profile, tier: profile.plan }
+  async function fetchProfile() {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("user_profiles")
+      .select("full_name, plan, primary_goal, weight_kg, goal_weight_kg")
+      .eq("id", userId)
+      .single();
+    if (data) setProfileData(data as UserProfile);
+  }
+
+  const coachUserProfile = profileData
+    ? { ...profileData, tier: profileData.plan }
     : null;
 
-  const displayName = profile?.full_name ?? email.split("@")[0] ?? "there";
-  const userPlan = profile?.plan ?? "free";
+  const displayName = profileData?.full_name ?? email.split("@")[0] ?? "there";
+  const userPlan = profileData?.plan ?? "free";
   const isPro = userPlan === "premium";
 
   async function handleLogout() {
@@ -58,6 +72,13 @@ export default function DashboardClient({ userId, email, profile }: Props) {
             Bitewize
           </span>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowSettings(true)}
+              className="rounded-xl border border-bw-border bg-bw-card px-4 py-2 text-sm font-medium text-bw-muted hover:text-bw-text hover:border-bw-purple transition flex items-center gap-1.5"
+            >
+              <Settings className="w-4 h-4" />
+              Settings
+            </button>
             <button
               onClick={handleLogout}
               className="rounded-xl border border-bw-border bg-bw-card px-5 py-2 text-sm font-medium text-bw-muted hover:text-bw-text hover:border-bw-purple transition"
@@ -89,12 +110,12 @@ export default function DashboardClient({ userId, email, profile }: Props) {
               {isPro ? "⚡ PRO" : "FREE"}
             </span>
           </div>
-          {profile?.primary_goal && (
+          {profileData?.primary_goal && (
             <p className="mt-1.5 text-bw-muted">
-              Goal: <span className="text-bw-text font-medium">{profile.primary_goal}</span>
-              {profile.weight_kg && profile.goal_weight_kg && (
+              Goal: <span className="text-bw-text font-medium">{profileData.primary_goal}</span>
+              {profileData.weight_kg && profileData.goal_weight_kg && (
                 <span className="ml-3 text-sm">
-                  · {profile.weight_kg}kg → {profile.goal_weight_kg}kg
+                  · {profileData.weight_kg}kg → {profileData.goal_weight_kg}kg
                 </span>
               )}
             </p>
@@ -135,6 +156,13 @@ export default function DashboardClient({ userId, email, profile }: Props) {
       <NutritionCoach
         mealPlan={activeMealPlan}
         userProfile={coachUserProfile}
+      />
+
+      <ProfileSettings
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        onProfileUpdate={fetchProfile}
+        userId={userId}
       />
     </div>
   );
